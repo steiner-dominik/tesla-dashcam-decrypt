@@ -17,3 +17,9 @@ demo_files/
 # macOS
 .DS_Store
 ._*
+
+# PyInstaller build output
+build/
+dist/
+dist_stub/
+*.spec

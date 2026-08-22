@@ -1,0 +1,97 @@
+name: Build release binaries
+
+# Tag a commit to publish a release:
+#   git tag v1.0.0 && git push origin v1.0.0
+# Or run manually from the Actions tab to just get build artifacts.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: tesla-dashcam-decrypt-windows-x64.exe
+          - os: macos-13          # Intel
+            asset: tesla-dashcam-decrypt-macos-x86_64
+          - os: macos-14          # Apple Silicon
+            asset: tesla-dashcam-decrypt-macos-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build single-file executable
+        run: pyinstaller --onefile --console --name tesla-dashcam-decrypt tesla_dashcam_decrypt.py
+
+      - name: Name the artifact (Windows)
+        if: runner.os == 'Windows'
+        run: Move-Item dist/tesla-dashcam-decrypt.exe "dist/${{ matrix.asset }}"
+
+      - name: Name the artifact (macOS)
+        if: runner.os == 'macOS'
+        run: mv dist/tesla-dashcam-decrypt "dist/${{ matrix.asset }}"
+
+      # Fails the build if the frozen binary can't even start — catches a
+      # missing bundled dependency before it reaches a release.
+      - name: Smoke test
+        run: dist/${{ matrix.asset }} --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            Unofficial community tool — **not affiliated with, endorsed by, or connected to Tesla, Inc.**
+
+            | Platform | Download |
+            |----------|----------|
+            | Windows (x64) | `tesla-dashcam-decrypt-windows-x64.exe` |
+            | macOS (Apple Silicon) | `tesla-dashcam-decrypt-macos-arm64` |
+            | macOS (Intel) | `tesla-dashcam-decrypt-macos-x86_64` |
+
+            These binaries are **unsigned**, so your OS will warn on first run:
+
+            - **macOS:** `chmod +x` the file, then remove the quarantine flag:
+              `xattr -d com.apple.quarantine tesla-dashcam-decrypt-macos-*`
+            - **Windows:** SmartScreen → *More info* → *Run anyway*.
+
+            Prefer to avoid that? Run from source instead — see the README.
+
+            Verify your download against `SHA256SUMS.txt`.

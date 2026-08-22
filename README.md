@@ -77,21 +77,29 @@ master key, which never leaves the car.
 
 ### Workaround: decrypt them in the car first
 
-You can have the vehicle decrypt clips for you, which covers the files this tool
-can't touch:
+Firmware 2026.20.200 added a decrypt button to the in-car Dashcam Viewer, which
+covers the files this tool can't touch:
 
-1. In the car, open the **Dashcam** app.
-2. Select the clip(s) you want.
-3. Tap the **unlock / decrypt** button (bottom right, near the playback-speed
-   control) and let it write the decrypted copies back to the USB drive.
+![Tesla's in-car Decrypt Dashcam Video feature in update 2026.20.200](https://www.notateslaapp.com/img/containers/article_images/2026/decrypt-dashcam-video.webp/dd7b7cee24479db80300bc750a1d3284/decrypt-dashcam-video.jpg)
 
-Those clips then land outside `EncryptedClips` as ordinary files — including
-`event.json` and `thumb.png` — and need no key request at all.
+<sub>Image credit: **@nikkharris** via
+[Not a Tesla App — 2026.20.200 release notes](https://www.notateslaapp.com/de/software-updates/version/2026.20.200/versionshinweise#decrypt-dashcam-video-2026-20-200-detail)</sub>
 
-This matches Tesla's own on-drive `-README_de.txt`, which describes the same
-in-app "Entschlüsseln" button, and has been
-[reported by owners in the wild](https://x.com/DerekBFSD/status/2084114777396380123).
-You can also turn encryption off entirely under
+1. In the car, open the **Dashcam** app and play the clip you want.
+2. In the playback bar, tap the **padlock / unlock icon** — it sits just right of
+   the `1x` playback-speed control, next to the trash icon.
+3. Confirm the **"Decrypt This Footage"** prompt.
+
+> ⚠️ **The prompt warns "This action can't be undone."** The car decrypts the
+> clip *in place* on the USB drive rather than making a decrypted copy, so the
+> encrypted original is gone afterwards. If that matters to you, back up the
+> drive before using this button.
+
+Those clips then become ordinary readable files — including `event.json` and
+`thumb.png` — and need no key request at all.
+
+This is the same button Tesla's own on-drive `-README_de.txt` describes as
+"Entschlüsseln". You can also turn encryption off entirely under
 **Vehicle → Safety → Encrypt Dashcam Recordings**.
 
 > **Note:** the zero-filled escrow page on `event.json` / `thumb.png` looks more
@@ -101,7 +109,36 @@ You can also turn encryption off entirely under
 > automatically**: it keys off the escrow block being present, not off the file
 > extension. Nothing here would need to change.
 
-## Setup
+## Install
+
+### Option A — download a ready-made binary
+
+Grab the latest build for your platform from the
+[Releases page](../../releases). No Python needed.
+
+| Platform | File |
+|----------|------|
+| Windows (x64) | `tesla-dashcam-decrypt-windows-x64.exe` |
+| macOS (Apple Silicon) | `tesla-dashcam-decrypt-macos-arm64` |
+| macOS (Intel) | `tesla-dashcam-decrypt-macos-x86_64` |
+
+These binaries are **unsigned** — I don't have an Apple/Microsoft code-signing
+certificate — so your OS will warn you the first time:
+
+```bash
+# macOS: make it executable and clear the quarantine flag
+chmod +x tesla-dashcam-decrypt-macos-arm64
+xattr -d com.apple.quarantine tesla-dashcam-decrypt-macos-arm64
+```
+
+On Windows, SmartScreen may show a warning — choose *More info → Run anyway*.
+Some antivirus tools also flag PyInstaller-built executables as suspicious;
+these are known false positives. If any of that bothers you, use Option B —
+the source is short enough to read in one sitting.
+
+Verify your download against the `SHA256SUMS.txt` published with each release.
+
+### Option B — run from source
 
 ```bash
 python3 -m venv .venv
@@ -130,6 +167,12 @@ Point it at your drive, its `TeslaCam` folder, or `EncryptedClips` directly:
 
 ```bash
 python tesla_dashcam_decrypt.py /Volumes/TESLA
+```
+
+If you downloaded a binary, use it in place of `python tesla_dashcam_decrypt.py`:
+
+```bash
+./tesla-dashcam-decrypt-macos-arm64 /Volumes/TESLA
 ```
 
 Decrypted files land in `DecryptedClips/` next to `EncryptedClips/`, mirroring the
@@ -175,3 +218,23 @@ Python 3.9+, plus `pycryptodome` and `requests`. `ffmpeg` is only needed for
 ## License
 
 MIT — same as the original project this is based on.
+
+## Releasing (maintainers)
+
+Binaries are built by GitHub Actions from
+[`.github/workflows/release.yml`](.github/workflows/release.yml). Tag a commit
+and the workflow builds Windows and macOS executables, generates checksums, and
+publishes them to a GitHub Release:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+You can also run the workflow manually from the Actions tab to get build
+artifacts without publishing a release. Each build runs `--help` against the
+frozen binary as a smoke test, so a missing bundled dependency fails the build
+rather than shipping.
+
+Builds run natively per platform (no cross-compilation): `windows-latest`,
+`macos-13` for Intel, and `macos-14` for Apple Silicon. Adding Linux is one more
+matrix entry if you ever want it.
