@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secrets
+.env
+token.txt
+*.token
+
+# Real footage — never commit
+EncryptedClips/
+DecryptedClips/
+demo_files/
+
+# macOS
+.DS_Store
+._*
