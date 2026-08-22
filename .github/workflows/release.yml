@@ -15,20 +15,24 @@ jobs:
   build:
     name: ${{ matrix.asset }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional == true }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             asset: tesla-dashcam-decrypt-windows-x64.exe
-          - os: macos-13          # Intel
-            asset: tesla-dashcam-decrypt-macos-x86_64
-          - os: macos-14          # Apple Silicon
+          - os: macos-15          # Apple Silicon
             asset: tesla-dashcam-decrypt-macos-arm64
+          # Intel macOS runners are scarcer and get retired faster than the
+          # others, so this leg is allowed to fail without blocking a release.
+          - os: macos-15-intel    # Intel
+            asset: tesla-dashcam-decrypt-macos-x86_64
+            optional: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -53,7 +57,7 @@ jobs:
       - name: Smoke test
         run: dist/${{ matrix.asset }} --help
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.asset }}
           path: dist/${{ matrix.asset }}
@@ -65,13 +69,20 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true
 
       - name: Checksums
-        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+        run: |
+          cd dist
+          if [ -z "$(ls -A)" ]; then
+            echo "::error::No binaries were built — refusing to publish an empty release."
+            exit 1
+          fi
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - uses: softprops/action-gh-release@v2
         with:
