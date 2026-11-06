@@ -1,0 +1,27 @@
+# Automated dependency updates. requirements.txt uses ">=" floors (each
+# release build bundles the newest compatible versions), so pip floors are only
+# raised when a release falls outside the range. Fresh releases wait a few days
+# (cooldown); security updates arrive immediately.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    versioning-strategy: increase-if-necessary
+    cooldown:
+      default-days: 5
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
